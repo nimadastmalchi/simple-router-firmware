@@ -77,9 +77,9 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
   //                    - GW == next hop IP
   //                    - Mask -- do IP addr & MASK to get IP address we want
   //                    - Interface name to send out on
-  //              - Look up next hop IP in ARP cache (call lookup in arp-cache.cpp)
-  //                 - If MAC found, forward as normal
-  //                 - If MAC not found, send an ARP request
+  //                - Look up next hop IP in ARP cache (call lookup in arp-cache.cpp)
+  //                    - If MAC found, forward as normal
+  //                    - If MAC not found, send an ARP request
   //                         - Queue the packet
   const uint8_t* buf = packet.data();
   uint16_t ethtype = ethertype(buf);
