@@ -38,7 +38,22 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
   std::cerr << getRoutingTable() << std::endl;
 
   // FILL THIS IN
-
+  // Extract ethernet header:
+  const uint8_t* buf = packet.data();
+  uint16_t ethtype = ethertype(buf);
+  const ethernet_hdr *ehdr = (const ethernet_hdr*) buf;
+  const uint8_t *ether_dest_addr = ehdr->ether_dhost;
+  const uint8_t *ether_src_addr = ehdr->ether_shost; 
+  if (ethtype == ethertype_ip) {
+    std::cout << "Received IP ethernet type" << std::endl;
+  }
+  else if (ethtype == ethertype_arp) {
+    std::cout << "Received ARP ethernet type" << std::endl;
+  }
+  else {
+    // unrecognized ethernet header
+    // TODO
+  }
 }
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
