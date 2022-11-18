@@ -39,16 +39,58 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
 
   // FILL THIS IN
   // Extract ethernet header:
+  // [NOTE] 300-350 lines are in this function
+  // - This function is called whenever a client reaches a router. For example, we send a ping from client
+  //   to the server, so packets will reach the rotuer first.
+  // - Pox and mininet will do the redirction and transfer for you.
+  // TODO
+  // - Router has three interfaces I1, I2, I3.  Client connected to I1, server1 on I2, server2 on I3
+  // - CASE 1: Check MAC address and ensure on interfaces connected to router.
+  //   dst: I1, src: I4 ... invalid interface, so drop the packet
+  // - Check if ARP or not ARP
+  //    - if ARP:
+  //         - Request:
+  //              Given IP address, lookup in ARP table and return MAC
+  //              Create the reply packet with the MAC address, send back on the same interface request
+  //               came from
+  //         - Reply:
+  //              First add mapping to table (insertEntry?? -- already implemented in arp-cache.hpp|cpp)
+  //                 Takes (IP, MAC) and adds it to the ARP cache (IP -> MAC)
+  //              Send out all packets waiting on this ARP request
+  //                 Iterate over packets in queue and send those waiting on this IP address
+  //    - If IP: (Anything that is not ARP (TCP, UDP, etc. -- indicated by protocol number))
+  //         - Verify the checksum
+  //             - Compute checksum and see if it matches checksum in IP header
+  //             - If checksum is wrong, drop packet (just return from function)
+  //         - Verify ethernet header length to given length (rigth format)
+  //         - Check IP version (must be IPv4)
+  //         - Check ACL and drop if necessary (call ACL function we implement later)
+  //         - Check if packet is destined for the router
+  //              - If so, drop
+  //        - Else
+  //              - Decrement TTL, if TTL = 0, drop
+  //              - Look up next hop IP
+  //                 - Look up next hop given destination in routing_table.hpp|cpp
+  //                 - Now we have IP address we need to send to next
+  //                 - Table entry in routing_table.cpp
+  //                    - dest == final IP
+  //                    - GW == next hop IP
+  //                    - Mask -- do IP addr & MASK to get IP address we want
+  //                    - Interface name to send out on
+  //              - Look up next hop IP in ARP cache (call lookup in arp-cache.cpp)
+  //                 - If MAC found, forward as normal
+  //                 - If MAC not found, send an ARP request
+  //                         - Queue the packet
   const uint8_t* buf = packet.data();
   uint16_t ethtype = ethertype(buf);
   const ethernet_hdr *ehdr = (const ethernet_hdr*) buf;
   const uint8_t *ether_dest_addr = ehdr->ether_dhost;
   const uint8_t *ether_src_addr = ehdr->ether_shost; 
-  if (ethtype == ethertype_ip) {
-    std::cout << "Received IP ethernet type" << std::endl;
-  }
-  else if (ethtype == ethertype_arp) {
+  if (ethtype == ethertype_arp) {
     std::cout << "Received ARP ethernet type" << std::endl;
+  }
+  else if (ethtype == ethertype_ip) {
+    std::cout << "Received IP ethernet type" << std::endl;
   }
   else {
     // unrecognized ethernet header
