@@ -32,7 +32,25 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 {
 
   // FILL THIS IN
+  // Summary: ARP cache entries, ARP requests resends
+  // ARP entries can timeout. This function is called every 30 seconds. Check if any of the entries
+  // are older than 30 seconds.
 
+  // ARP cache
+  //    Iterate over all entries in the ARP cache.
+  //        If entry is invalid, call remove function on the entry
+  //        Else, do nothing
+  // ARP requests -- need to be resend once per second until we get a reply
+  //    Maintain a queue of all ARP requests you have sent and have not received a reply for
+  //    Iterate over queued requests
+  //    Each request has a counter of number of times it has been sent
+  //    Compare times sent to MAX_TIMES_SENT (?)
+  //    If has been sent too many times:
+  //         Remove request from the queue (also remove request if a reply is received IN ANOTHER FUNCTION)
+  //         Drop packets waiting for this reply
+  //    Else
+  //         Increment times sent (update header)
+  //         Resend
 }
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////

@@ -58,6 +58,23 @@ ACLTableEntry
 ACLTable::lookup(uint32_t srcIp, uint32_t dstIp, uint8_t protocol, uint32_t srcPort, uint16_t dstPort) const
 {
   // FILL THIS IN
+  // Iterate over all entries
+  //    If found, return the entry
+
+  // One rule can correspond to multiple IP addresses. Use mask in ACL table to check if the IP addresses
+  // match
+
+  // ACL rule
+  // dstIP, dstMask -- use dstMask on the dstIp that is passed to this function (?)
+  // srcIP, srcMask -- use srcMask on the srcIp that is passed to this function (?)
+  // dstPort, srcPort
+  // protocol
+  // priority
+  // action
+
+  // mask is of from: ffff0000
+
+  // Iterate over the table and return the entry with the highest priority number
 
   throw std::runtime_error("ACL entry not found");
 }

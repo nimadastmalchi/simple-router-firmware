@@ -33,6 +33,13 @@ RoutingTable::lookup(uint32_t ip) const
 {
 
   // FILL THIS IN
+  // RoutingTablEntry
+  //    - dest IP
+  //    - next hop IP (GW)
+  //    - Mask
+  //    - Interface name of next hop
+  // Longest prefix match -- linear search
+  // Requires some masking
 
   throw std::runtime_error("Routing entry not found");
 }
