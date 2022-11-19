@@ -43,7 +43,6 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
   // - This function is called whenever a client reaches a router. For example, we send a ping from client
   //   to the server, so packets will reach the rotuer first.
   // - Pox and mininet will do the redirction and transfer for you.
-  // TODO
   // - Router has three interfaces I1, I2, I3.  Client connected to I1, server1 on I2, server2 on I3
   // - CASE 1: Check MAC address and ensure on interfaces connected to router.
   //   dst: I1, src: I4 ... invalid interface, so drop the packet
@@ -82,19 +81,49 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
   //                    - If MAC not found, send an ARP request
   //                         - Queue the packet
   const uint8_t* buf = packet.data();
+  size_t length = packet.size();
+  size_t minlength = sizeof(ethernet_hdr);
+  if (length < minlength) {
+    std::cerr << "Insufficient length (eth hdr)... dropped" << std::endl;
+    return;
+  }
   uint16_t ethtype = ethertype(buf);
-  const ethernet_hdr *ehdr = (const ethernet_hdr*) buf;
+  const ethernet_hdr *ehdr = (const ethernet_hdr *) buf;
   const uint8_t *ether_dest_addr = ehdr->ether_dhost;
   const uint8_t *ether_src_addr = ehdr->ether_shost; 
   if (ethtype == ethertype_arp) {
     std::cout << "Received ARP ethernet type" << std::endl;
+    minlength += sizeof(arp_hdr);
+    if (length < minlength) {
+        std::cerr << "Insufficient length (arp hdr)... dropped" << std::endl;
+        return;
+    }
+    const arp_hdr *ahdr = (const arp_hdr *) (buf + sizeof(ethernet_hdr));
+    if (ahdr->arp_op == 1) { /* ARP Request */
+        std::cout << "Received ARP request" << std::endl;
+    }
+    else if (ahdr->arp_op == 0) { /* ARP Reply */
+        std::cout << "Received ARP reply" << std::endl;
+        const unsigned char *arp_sha = ahdr->arp_sha;
+        const uint32_t ip = ahdr->arp_sip;
+        Buffer mac;
+        for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
+            mac.push_back(arp_sha[i]);
+        }
+        m_arp.insertArpEntry(mac, ip);
+        // TODO Send out all packets waiting on this ARP request in the queue
+    }
+    else {
+        std::cout << "Unkown ARP packet with arp_op " << ahdr->arp_op << "... dropped" << std::endl;
+        return;
+    }
   }
   else if (ethtype == ethertype_ip) {
     std::cout << "Received IP ethernet type" << std::endl;
   }
   else {
-    // unrecognized ethernet header
-    // TODO
+    std::cerr << "Unrecognized ethernet header... dropped" << std::endl;
+    return;
   }
 }
 //////////////////////////////////////////////////////////////////////////
