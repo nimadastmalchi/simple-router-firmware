@@ -18,8 +18,22 @@
 #include "core/utils.hpp"
 
 #include <fstream>
+#include <climits>
 
 namespace simple_router {
+
+template <typename T>
+T swap_endian(T u) {
+    union {
+        T u;
+        unsigned char u8[sizeof(T)];
+    } source, dest;
+    source.u = u;
+    for (size_t k = 0; k < sizeof(T); k++) {
+        dest.u8[k] = source.u8[sizeof(T) - k - 1];
+    }
+    return dest.u;
+}
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -38,6 +52,73 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
   std::cerr << getRoutingTable() << std::endl;
 
   // FILL THIS IN
+  const uint8_t *buf = packet.data();
+  size_t length = packet.size();
+  print_hdrs(buf, length);
+  size_t minlength = sizeof(ethernet_hdr);
+  if (length < minlength) {
+    std::cerr << "Insufficient length (eth hdr)... dropped" << std::endl;
+    return;
+  }
+  const ethernet_hdr *ehdr = (const ethernet_hdr *) buf;
+  const uint8_t *ether_dest_addr = ehdr->ether_dhost;
+  const uint8_t *ether_src_addr = ehdr->ether_shost; 
+  // Convert endianness of ether_type:
+  //uint16_t ether_type = (ehdr->ether_type>>8) | (ehdr->ether_type<<8);
+  uint16_t ether_type = swap_endian(ehdr->ether_type);
+  std::cout << "Received ethernet header with ether_type of " << ehdr->ether_type << std::endl;
+  if (ether_type == ethertype_arp) {
+    std::cout << "Received ARP ethernet type" << std::endl;
+    minlength += sizeof(arp_hdr);
+    if (length < minlength) {
+        std::cerr << "Insufficient length (arp hdr)... dropped" << std::endl;
+        return;
+    }
+    const arp_hdr *ahdr = (const arp_hdr *) (buf + sizeof(ethernet_hdr));
+    unsigned short arp_op = swap_endian(ahdr->arp_op);
+    if (arp_op == arp_op_request) { /* ARP Request */
+        // TODO
+        std::cout << "Received ARP request" << std::endl;
+        uint32_t arp_tip = swap_endian(ahdr->arp_tip);
+        std::shared_ptr<ArpEntry> arp_entry = m_arp.lookup(arp_tip);
+        Buffer mac = arp_entry->mac;
+        struct arp_hdr arp_reply = {0};
+        arp_reply->arp_hrd = ahdr->arp_hrd;
+        arp_reply->arp_pro = ahdr->arp_pro;
+        arp_reply->arp_hln = ahdr->arp_hln;
+        arp_reply->arp_pln = ahdr->arp_pln;
+        arp_reply->arp_op = arp_op_reply;
+        for (size_t i = 0; i < iface->addr.size(); ++i) {
+            arp_reply->arp_sha[i] = iface->addr[i];
+        }
+        arp_reply->arp_sip = iface->ip;
+        // TODO
+    }
+    else if (ahdr->arp_op == arp_op_reply) { /* ARP Reply */
+        std::cout << "Received ARP reply" << std::endl;
+        const unsigned char *arp_sha = ahdr->arp_sha;
+        const uint32_t ip = ahdr->arp_sip;
+        Buffer mac;
+        for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
+            mac.push_back(arp_sha[i]);
+        }
+        m_arp.insertArpEntry(mac, ip);
+        // TODO Send out all packets waiting on this ARP request in the queue
+    }
+    else {
+        std::cout << "Unkown ARP packet with arp_op " << ahdr->arp_op << "... dropped" << std::endl;
+        return;
+    }
+  }
+  else if (ether_type == ethertype_ip) {
+    std::cout << "Received IP ethernet type" << std::endl;
+  }
+  else {
+    std::cerr << "Unrecognized ethernet header... dropped" << std::endl;
+    return;
+  }
+
+
   // Extract ethernet header:
   // [NOTE] 300-350 lines are in this function
   // - This function is called whenever a client reaches a router. For example, we send a ping from client
@@ -80,51 +161,6 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
   //                    - If MAC found, forward as normal
   //                    - If MAC not found, send an ARP request
   //                         - Queue the packet
-  const uint8_t* buf = packet.data();
-  size_t length = packet.size();
-  size_t minlength = sizeof(ethernet_hdr);
-  if (length < minlength) {
-    std::cerr << "Insufficient length (eth hdr)... dropped" << std::endl;
-    return;
-  }
-  uint16_t ethtype = ethertype(buf);
-  const ethernet_hdr *ehdr = (const ethernet_hdr *) buf;
-  const uint8_t *ether_dest_addr = ehdr->ether_dhost;
-  const uint8_t *ether_src_addr = ehdr->ether_shost; 
-  if (ethtype == ethertype_arp) {
-    std::cout << "Received ARP ethernet type" << std::endl;
-    minlength += sizeof(arp_hdr);
-    if (length < minlength) {
-        std::cerr << "Insufficient length (arp hdr)... dropped" << std::endl;
-        return;
-    }
-    const arp_hdr *ahdr = (const arp_hdr *) (buf + sizeof(ethernet_hdr));
-    if (ahdr->arp_op == 1) { /* ARP Request */
-        std::cout << "Received ARP request" << std::endl;
-    }
-    else if (ahdr->arp_op == 0) { /* ARP Reply */
-        std::cout << "Received ARP reply" << std::endl;
-        const unsigned char *arp_sha = ahdr->arp_sha;
-        const uint32_t ip = ahdr->arp_sip;
-        Buffer mac;
-        for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
-            mac.push_back(arp_sha[i]);
-        }
-        m_arp.insertArpEntry(mac, ip);
-        // TODO Send out all packets waiting on this ARP request in the queue
-    }
-    else {
-        std::cout << "Unkown ARP packet with arp_op " << ahdr->arp_op << "... dropped" << std::endl;
-        return;
-    }
-  }
-  else if (ethtype == ethertype_ip) {
-    std::cout << "Received IP ethernet type" << std::endl;
-  }
-  else {
-    std::cerr << "Unrecognized ethernet header... dropped" << std::endl;
-    return;
-  }
 }
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
