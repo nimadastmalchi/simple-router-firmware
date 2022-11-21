@@ -17,6 +17,7 @@
 #include "routing-table.hpp"
 #include "core/utils.hpp"
 
+#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -41,6 +42,39 @@ RoutingTable::lookup(uint32_t ip) const
   // Longest prefix match -- linear search
   // Requires some masking
 
+  std::list<RoutingTableEntry>::const_iterator best_match;
+  int prefix_size = -1;
+  for (std::list<RoutingTableEntry>::const_iterator it=m_entries.begin(); it!=m_entries.end(); ++it) {
+    std::cout << "Performing check in RoutingTable::lookup" << std::endl;
+    /*
+    std::cout << "target ip: ";
+    print_addr_ip_int(ip);
+    std::cout << "ip in table: ";
+    print_addr_ip_int(it->dest);
+    std::cout << "mask: ";
+    std::cout << it->mask << std::endl;
+    std::cout << "After mask: ";
+    print_addr_ip_int(ip & it->mask);
+    */
+    if (it->dest == (ip & it->mask)) {
+      std::cout << "Match found..." << std::endl;
+      // Count number of set bits in mask
+      int cur_prefix_size = 0;
+      uint32_t mask = it->mask;
+      while (mask) {
+        cur_prefix_size += mask & 1;
+        mask >>= 1;
+      }
+      std::cout << "Mask " << it->mask << " has " << cur_prefix_size << " set bits" << std::endl;
+      if (cur_prefix_size > prefix_size) {
+        best_match = it;
+        prefix_size = cur_prefix_size;
+      }
+    }
+  }
+  if (prefix_size >= 0) {
+    return *best_match;
+  }
   throw std::runtime_error("Routing entry not found");
 }
 //////////////////////////////////////////////////////////////////////////

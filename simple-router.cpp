@@ -63,10 +63,36 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
   const ethernet_hdr *ehdr = (const ethernet_hdr *) buf;
   const uint8_t *ether_dest_addr = ehdr->ether_dhost;
   const uint8_t *ether_src_addr = ehdr->ether_shost; 
+
+  // Check if packet is destined to the router.
+  if (iface->addr.size() != ETHER_ADDR_LEN) {
+     std::cerr << "Received packet not destined for router... dropped" << std::endl;
+  }
+  bool correct_dest = true;
+  for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
+     if (ether_dest_addr[i] != 255) {
+        correct_dest = false;
+        break;
+     }
+  }
+  if (!correct_dest) {
+     correct_dest = true;
+     for (size_t i = 0; i < iface->addr.size(); ++i) {
+       if (iface->addr[i] != ether_dest_addr[i]) {
+         correct_dest = false;
+         break;
+       }
+     }
+  } else {
+     std::cout << "Destination of all ones detected" << std::endl;
+  }
+  if (!correct_dest) {
+     std::cerr << "Received packet not destined for router... dropped" << std::endl;
+  }
+
   // Convert endianness of ether_type:
   //uint16_t ether_type = (ehdr->ether_type>>8) | (ehdr->ether_type<<8);
   uint16_t ether_type = swap_endian(ehdr->ether_type);
-  std::cout << "Received ethernet header with ether_type of " << ehdr->ether_type << std::endl;
   if (ether_type == ethertype_arp) {
     std::cout << "Received ARP ethernet type" << std::endl;
     minlength += sizeof(arp_hdr);
@@ -81,17 +107,31 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         std::cout << "Received ARP request" << std::endl;
         uint32_t arp_tip = swap_endian(ahdr->arp_tip);
         std::shared_ptr<ArpEntry> arp_entry = m_arp.lookup(arp_tip);
-        Buffer mac = arp_entry->mac;
-        struct arp_hdr arp_reply = {0};
-        arp_reply->arp_hrd = ahdr->arp_hrd;
-        arp_reply->arp_pro = ahdr->arp_pro;
-        arp_reply->arp_hln = ahdr->arp_hln;
-        arp_reply->arp_pln = ahdr->arp_pln;
-        arp_reply->arp_op = arp_op_reply;
-        for (size_t i = 0; i < iface->addr.size(); ++i) {
-            arp_reply->arp_sha[i] = iface->addr[i];
+        if (!arp_entry) {
+            std::cout << "Could not find target IP in ARP table... looking for it in routing table" << std::endl;
+            RoutingTableEntry rtable_entry = m_routingTable.lookup(arp_tip);
+            // Now we must send an ARP request on the other interface.
+            const Interface *otherIface = findIfaceByName(rtable_entry.ifName);
+            // Form ARP request to send on other interface.
+            std::cout << "Sending ARP request on interface " << rtable_entry.ifName << " after receiving an ARP request on interface " << inIface << std::endl;
+            return;
         }
-        arp_reply->arp_sip = iface->ip;
+        else {
+            arp_hdr arp_reply = {0};
+            arp_reply.arp_hrd = ahdr->arp_hrd;
+            arp_reply.arp_pro = ahdr->arp_pro;
+            arp_reply.arp_hln = ahdr->arp_hln;
+            arp_reply.arp_pln = ahdr->arp_pln;
+            arp_reply.arp_op = arp_op_reply;
+            for (size_t i = 0; i < iface->addr.size(); ++i) {
+                arp_reply.arp_sha[i] = iface->addr[i];
+            }
+            arp_reply.arp_sip = iface->ip;
+            for (size_t i = 0; i < iface->addr.size(); ++i) {
+                arp_reply.arp_tha[i] = arp_entry->mac[i];
+            }
+            arp_reply.arp_tip = arp_entry->ip;
+        }
         // TODO
     }
     else if (ahdr->arp_op == arp_op_reply) { /* ARP Reply */
