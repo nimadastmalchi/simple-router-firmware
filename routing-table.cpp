@@ -56,7 +56,7 @@ RoutingTable::lookup(uint32_t ip) const
     std::cout << "After mask: ";
     print_addr_ip_int(ip & it->mask);
     */
-    if (it->dest == (ip & it->mask)) {
+    if ((it->dest & it->mask) == (ip & it->mask)) {
       std::cout << "Match found..." << std::endl;
       // Count number of set bits in mask
       int cur_prefix_size = 0;
