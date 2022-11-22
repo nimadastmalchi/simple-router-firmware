@@ -110,41 +110,42 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         const Interface *requested_interface = findIfaceByIp(ahdr->arp_tip);
         std::cout << "Request for " << requested_interface->name << std::endl;
 
-        uint8_t reply_packet[sizeof(ethernet_hdr) + sizeof(arp_hdr)];
-
         // Set the ethernet_hdr
-        const ethernet_hdr *eth_reply = (const ethernet_hdr *) &reply_packet;
+        ethernet_hdr eth_reply = {0};
         for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
-            eth_reply->ether_dhost[i] = ahdr->arp_sha[i];
-            eth_reply->ether_shost[i] = requested_interface->addr[i];
+            eth_reply.ether_dhost[i] = ahdr->arp_sha[i];
+            eth_reply.ether_shost[i] = requested_interface->addr[i];
         }
-        eth_reply->ether_type = ethertype_arp;
+        eth_reply.ether_type = htons(ethertype_arp);
 
         // Set the arp_hdr
-        const arp_hdr *arp_reply = (const arp_hdr *) (&reply_packet + sizeof(ethernet_hdr)):
-        arp_reply->arp_hrd = ahdr->arp_hrd;
-        arp_reply->arp_pro = ahdr->arp_pro;
-        arp_reply->arp_hln = ahdr->arp_hln;
-        arp_reply->arp_pln = ahdr->arp_pln;
-        arp_reply->arp_op = arp_op_reply;
+        arp_hdr arp_reply = {0};
+        arp_reply.arp_hrd = ahdr->arp_hrd;
+        arp_reply.arp_pro = ahdr->arp_pro;
+        arp_reply.arp_hln = ahdr->arp_hln;
+        arp_reply.arp_pln = ahdr->arp_pln;
+        arp_reply.arp_op = htons(arp_op_reply);
         for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
-            arp_reply->arp_sha[i] = requested_interface->addr[i];
+            arp_reply.arp_sha[i] = requested_interface->addr[i];
         }
-        arp_reply->arp_sip = requested_interface->ip;
+        arp_reply.arp_sip = requested_interface->ip;
         for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
-            arp_reply->arp_tha[i] = ahdr->arp_sha[i];
+            arp_reply.arp_tha[i] = ahdr->arp_sha[i];
         }
-        arp_reply->arp_tip = ahdr->arp_sip;
+        arp_reply.arp_tip = ahdr->arp_sip;
 
-        const uint8_t *arp_reply_buf = (const uint8_t *) &reply_packet;
         Buffer arp_reply_packet;
-        for (size_t i = 0; i < sizeof(ethernet_hdr) + sizeof(arp_hdr); ++i) {
-            arp_reply_packet.push_back(arp_reply_buf[i]);
+        const uint8_t *eth_buf = (const uint8_t *) &eth_reply;
+        for (size_t i = 0; i < sizeof(ethernet_hdr); ++i) {
+            arp_reply_packet.push_back(eth_buf[i]);
         }
-        std::cout << "Sending ARP reply" << std::endl;
+        const uint8_t *arp_buf = (const uint8_t *) &arp_reply;
+        for (size_t i = 0; i < sizeof(arp_hdr); ++i) {
+            arp_reply_packet.push_back(arp_buf[i]);
+        }
+        std::cout << "Printing ARP reply packet" << std::endl;
         print_hdrs(arp_reply_packet.data(), arp_reply_packet.size());
         this->sendPacket(arp_reply_packet, iface->name);
-        std::cout << "Done" << std::endl;
         return;
         // std::shared_ptr<ArpEntry> arp_entry = m_arp.lookup(arp_tip);
         /*
@@ -204,14 +205,8 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         */
     }
     else if (ahdr->arp_op == arp_op_reply) { /* ARP Reply */
+        // TODO
         std::cout << "Received ARP reply" << std::endl;
-        const unsigned char *arp_sha = ahdr->arp_sha;
-        const uint32_t ip = ahdr->arp_sip;
-        Buffer mac;
-        for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
-            mac.push_back(arp_sha[i]);
-        }
-        m_arp.insertArpEntry(mac, ip);
         // TODO Send out all packets waiting on this ARP request in the queue
     }
     else {
