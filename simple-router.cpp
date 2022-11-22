@@ -67,6 +67,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
   // Check if packet is destined to the router.
   if (iface->addr.size() != ETHER_ADDR_LEN) {
      std::cerr << "Received packet not destined for router... dropped" << std::endl;
+     return;
   }
   bool correct_dest = true;
   for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
@@ -102,12 +103,70 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     }
     const arp_hdr *ahdr = (const arp_hdr *) (buf + sizeof(ethernet_hdr));
     unsigned short arp_op = swap_endian(ahdr->arp_op);
+
     if (arp_op == arp_op_request) { /* ARP Request */
-        // TODO
+        // ARP request asking for one of our interface IP addresses
         std::cout << "Received ARP request" << std::endl;
-        uint32_t arp_tip = swap_endian(ahdr->arp_tip);
-        std::shared_ptr<ArpEntry> arp_entry = m_arp.lookup(arp_tip);
+        const Interface *requested_interface = findIfaceByIp(ahdr->arp_tip);
+        std::cout << "Request for " << requested_interface->name << std::endl;
+        uint8_t reply_packet[sizeof(ethernet_hdr) + sizeof(arp_hdr)];
+
+        arp_hdr arp_reply = {0};
+        const arp_hdr *arp_reply = (const arp_hdr *) &reply_packet:
+        arp_reply->arp_hrd = ahdr->arp_hrd;
+        arp_reply->arp_pro = ahdr->arp_pro;
+        arp_reply->arp_hln = ahdr->arp_hln;
+        arp_reply->arp_pln = ahdr->arp_pln;
+        arp_reply->arp_op = arp_op_reply;
+        for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
+            arp_reply->arp_sha[i] = requested_interface->addr[i];
+        }
+        arp_reply->arp_sip = requested_interface->ip;
+        for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
+            arp_reply->arp_tha[i] = ahdr->arp_sha[i];
+        }
+        arp_reply->arp_tip = ahdr->arp_sip;
+
+        const uint8_t *arp_reply_buf = (const uint8_t *) &arp_reply;
+        Buffer arp_reply_packet;
+        for (size_t i = 0; i < sizeof(arp_hdr); ++i) {
+            arp_reply_packet.push_back(arp_reply_buf[i]);
+        }
+        std::cout << "Sending ARP reply" << std::endl;
+        print_hdrs(arp_reply_packet.data(), arp_reply_packet.size());
+        this->sendPacket(arp_reply_packet, iface->name);
+        std::cout << "Done" << std::endl;
+        return;
+        // std::shared_ptr<ArpEntry> arp_entry = m_arp.lookup(arp_tip);
+        /*
         if (!arp_entry) {
+            if (arp_tip == swap_endian(iface->ip)) {
+                std::cout << "ARP request is for this interface. Sending ARP reply." << std::endl;
+                arp_hdr arp_reply = {0};
+                arp_reply.arp_hrd = ahdr->arp_hrd;
+                arp_reply.arp_pro = ahdr->arp_pro;
+                arp_reply.arp_hln = ahdr->arp_hln;
+                arp_reply.arp_pln = ahdr->arp_pln;
+                arp_reply.arp_op = arp_op_reply;
+                for (size_t i = 0; i < iface->addr.size(); ++i) {
+                    arp_reply.arp_sha[i] = iface->addr[i];
+                }
+                arp_reply.arp_sip = iface->ip;
+                for (size_t i = 0; i < iface->addr.size(); ++i) {
+                    arp_reply.arp_tha[i] = ahdr->arp_sha[i];
+                }
+                arp_reply.arp_tip = ahdr->arp_sip;
+                const uint8_t *arp_reply_buf = (const uint8_t *) &arp_reply;
+                Buffer arp_reply_packet;
+                for (size_t i = 0; i < sizeof(arp_hdr); ++i) {
+                    arp_reply_packet.push_back(arp_reply_buf[i]);
+                }
+                std::cout << "Sending ARP reply" << std::endl;
+                this->sendPacket(arp_reply_packet, iface->name);
+                std::cout << "Done" << std::endl;
+                return;
+            }
+
             std::cout << "Could not find target IP in ARP table... looking for it in routing table" << std::endl;
             RoutingTableEntry rtable_entry = m_routingTable.lookup(arp_tip);
             // Now we must send an ARP request on the other interface.
@@ -133,6 +192,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
             arp_reply.arp_tip = arp_entry->ip;
         }
         // TODO
+        */
     }
     else if (ahdr->arp_op == arp_op_reply) { /* ARP Reply */
         std::cout << "Received ARP reply" << std::endl;
