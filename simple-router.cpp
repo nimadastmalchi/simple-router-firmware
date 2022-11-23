@@ -139,9 +139,18 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         return;
     }
     else if (arp_op == arp_op_reply) {
-        // TODO Add to ARP table
+        // TODO NOT TESTED
         std::cout << "Received ARP reply" << std::endl;
+
+        // Map ahdr->arp_sip to ahdr->arp_sha
+        Buffer mac;
+        for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
+            mac.push_back(ahdr->arp_sha[i]);
+        }
+        m_arp.insertArpEntry(mac, ahdr->arp_sip);
+
         // TODO Send out all packets waiting on this ARP request in the queue
+        return;
     }
     else {
         std::cout << "Unkown ARP packet with arp_op " << ahdr->arp_op << "... dropped" << std::endl;
@@ -159,12 +168,12 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
 
     const ip_hdr *ihdr = (const ip_hdr *) (buf + sizeof(ethernet_hdr));
     // Verify checksum
-    uint16_t computed_sum = cksum(ihdr, sizeof(ip_hdr));
+    uint16_t computed_sum = cksum(ihdr, packet.size() - sizeof(ethernet_hdr));
     std::cout << "Computed sum: " << computed_sum << std::endl;
     std::cout << "Header sum: " << ihdr->ip_sum << std::endl;
 
     if (computed_sum != ihdr->ip_sum) {
-        std::cerr<< "Incorrect checksum" << std::endl;
+        std::cerr << "Incorrect IP header checksum" << std::endl;
         //return; // TODO
     }
 
