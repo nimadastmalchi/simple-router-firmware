@@ -238,23 +238,23 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
             eth_req.ether_dhost[i] = 255;
             eth_req.ether_shost[i] = next_hop_iface->addr[i];
         }
-        eth_req.ether_type = htons(ethertype_request);
+        eth_req.ether_type = htons(ethertype_arp);
 
         // Set the arp_hdr
         arp_hdr arp_req = {0};
-        arp_req.arp_hrd = ahdr->arp_hrd; // TODO
-        arp_req.arp_pro = ahdr->arp_pro; // TODO
-        arp_req.arp_hln = ahdr->arp_hln; // TODO
-        arp_req.arp_pln = ahdr->arp_pln; // TODO
+        arp_req.arp_hrd = htons(1); // TODO
+        arp_req.arp_pro = htons(2048); // TODO
+        arp_req.arp_hln = 6; // TODO
+        arp_req.arp_pln = 4; // TODO
         arp_req.arp_op = htons(arp_op_request);
         for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
             arp_req.arp_sha[i] = next_hop_iface->addr[i];
         }
         arp_req.arp_sip = next_hop_iface->ip;
         for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
-            arp_reply.arp_tha[i] = 0;
+            arp_req.arp_tha[i] = 0;
         }
-        arp_reply.arp_tip = ihdr_fwd->ip_dst;
+        arp_req.arp_tip = ihdr_fwd->ip_dst;
 
         Buffer arp_req_packet;
         const uint8_t *eth_buf = (const uint8_t *) &eth_req;
@@ -265,7 +265,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         for (size_t i = 0; i < sizeof(arp_hdr); ++i) {
             arp_req_packet.push_back(arp_buf[i]);
         }
-        std::cout << "Printing ARP reply packet" << std::endl;
+        std::cout << "Printing ARP request packet we are about to send" << std::endl;
         print_hdrs(arp_req_packet.data(), arp_req_packet.size());
         sendPacket(arp_req_packet, rtable_entry.ifName);
         return;
