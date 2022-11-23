@@ -163,33 +163,60 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
   }
   else if (ether_type == ethertype_ip) {
     std::cout << "Received IP ethernet type" << std::endl;
+
+    minlength += sizeof(ip_hdr);
+    if (length < minlength) {
+        std::cerr << "Insufficient length (ip hdr)... dropped" << std::endl;
+        return;
+    }
+
     const ip_hdr *ihdr = (const ip_hdr *) (buf + sizeof(ethernet_hdr));
-    // Compute checksum
+    // Verify checksum
     // TODO
 
+    // Make a copy of the packet
+    Buffer packet_fwd(packet);
 
-    const Interface *ip_dst_iface = findIfaceByIp(ihdr->ip_dst);
+    ethernet_hdr *ehdr_fwd = (ethernet_hdr *) packet_fwd.data();
+    ip_hdr *ihdr_fwd = (ip_hdr *) (packet_fwd.data() + sizeof(ethernet_hdr));
+
+    if (ihdr_fwd->ip_v != 4) {
+        std::cout << "IP is not version 4... dropped" << std::endl;
+        return;
+    }
+
+    // Check ACL and drop if necessary
+    // TODO
+
+    // Check if packet is destined for the router
+    const Interface *ip_dst_iface = findIfaceByIp(ihdr_fwd->ip_dst);
     if (ip_dst_iface != nullptr) {
         std::cout << "IP packet is destined for router... dropped" << std::endl;
         return;
     }
 
-    RoutingTableEntry rtable_entry = m_routingTable.lookup(ihdr->ip_dst);
+    // Decrement TTL
+    if (ihdr_fwd->ip_ttl == 0) {
+        std::cout << "TTL already 0... dropped" << std::endl;
+    }
+    ihdr_fwd->ip_ttl -= 1;
+    if (ihdr_fwd->ip_ttl == 0) {
+        std::cout << "TTL reached 0... dropped" << std::endl;
+    }
+
+    RoutingTableEntry rtable_entry = m_routingTable.lookup(ihdr_fwd->ip_dst);
+    const Interface *next_hop_iface = findIfaceByName(rtable_entry.ifName);
+
     // Forward packet
     // 1. Check arp cache for MAC address
     //    If not found, send ARP request on the interface
     //        Add packet to queue
     //    If found, forward packet
-    std::shared_ptr<ArpEntry> a_entry = m_arp.lookup(ihdr->ip_dst);
+    std::shared_ptr<ArpEntry> a_entry = m_arp.lookup(ihdr_fwd->ip_dst);
     if (a_entry) {
         // TODO needs to be tested
         std::cout << "ARP entry for next hop found" << std::endl;
 
-        Buffer packet_fwd(packet);
-
-        ethernet_hdr *ehdr_fwd = (ethernet_hdr *) packet_fwd.data();
-
-        const Interface *next_hop_iface = findIfaceByName(rtable_entry.ifName);
         for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
             ehdr_fwd->ether_dhost[i] = a_entry->mac[i];
             ehdr_fwd->ether_shost[i] = next_hop_iface->addr[i];
@@ -201,7 +228,47 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         return;
     }
     else {
-        std::cout << "ARP entry for next hop not found. Sending ARP request on that interface" << std::endl;
+        std::cout << "ARP entry for next hop not found. Sending ARP request on interface " << rtable_entry.ifName << std::endl;
+
+        // Send ARP request and copy packet_fwd into queue
+
+        // Set the ethernet_hdr
+        ethernet_hdr eth_req = {0};
+        for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
+            eth_req.ether_dhost[i] = 255;
+            eth_req.ether_shost[i] = next_hop_iface->addr[i];
+        }
+        eth_req.ether_type = htons(ethertype_request);
+
+        // Set the arp_hdr
+        arp_hdr arp_req = {0};
+        arp_req.arp_hrd = ahdr->arp_hrd; // TODO
+        arp_req.arp_pro = ahdr->arp_pro; // TODO
+        arp_req.arp_hln = ahdr->arp_hln; // TODO
+        arp_req.arp_pln = ahdr->arp_pln; // TODO
+        arp_req.arp_op = htons(arp_op_request);
+        for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
+            arp_req.arp_sha[i] = next_hop_iface->addr[i];
+        }
+        arp_req.arp_sip = next_hop_iface->ip;
+        for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
+            arp_reply.arp_tha[i] = 0;
+        }
+        arp_reply.arp_tip = ihdr_fwd->ip_dst;
+
+        Buffer arp_req_packet;
+        const uint8_t *eth_buf = (const uint8_t *) &eth_req;
+        for (size_t i = 0; i < sizeof(ethernet_hdr); ++i) {
+            arp_req_packet.push_back(eth_buf[i]);
+        }
+        const uint8_t *arp_buf = (const uint8_t *) &arp_req;
+        for (size_t i = 0; i < sizeof(arp_hdr); ++i) {
+            arp_req_packet.push_back(arp_buf[i]);
+        }
+        std::cout << "Printing ARP reply packet" << std::endl;
+        print_hdrs(arp_req_packet.data(), arp_req_packet.size());
+        sendPacket(arp_req_packet, rtable_entry.ifName);
+        return;
     }
   }
   else {
