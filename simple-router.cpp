@@ -22,19 +22,6 @@
 
 namespace simple_router {
 
-template <typename T>
-T swap_endian(T u) {
-    union {
-        T u;
-        unsigned char u8[sizeof(T)];
-    } source, dest;
-    source.u = u;
-    for (size_t k = 0; k < sizeof(T); k++) {
-        dest.u8[k] = source.u8[sizeof(T) - k - 1];
-    }
-    return dest.u;
-}
-
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 // IMPLEMENT THIS METHOD
@@ -93,7 +80,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
 
   // Convert endianness of ether_type:
   //uint16_t ether_type = (ehdr->ether_type>>8) | (ehdr->ether_type<<8);
-  uint16_t ether_type = swap_endian(ehdr->ether_type);
+  uint16_t ether_type = ntohs(ehdr->ether_type);
   if (ether_type == ethertype_arp) {
     std::cout << "Received ARP ethernet type" << std::endl;
     minlength += sizeof(arp_hdr);
@@ -102,7 +89,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         return;
     }
     const arp_hdr *ahdr = (const arp_hdr *) (buf + sizeof(ethernet_hdr));
-    unsigned short arp_op = swap_endian(ahdr->arp_op);
+    unsigned short arp_op = ntohs(ahdr->arp_op);
 
     if (arp_op == arp_op_request) {
         // ARP request asking for one of our interface IP addresses
@@ -151,8 +138,8 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         sendPacket(arp_reply_packet, iface->name);
         return;
     }
-    else if (ahdr->arp_op == arp_op_reply) {
-        // TODO
+    else if (arp_op == arp_op_reply) {
+        // TODO Add to ARP table
         std::cout << "Received ARP reply" << std::endl;
         // TODO Send out all packets waiting on this ARP request in the queue
     }
@@ -172,7 +159,14 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
 
     const ip_hdr *ihdr = (const ip_hdr *) (buf + sizeof(ethernet_hdr));
     // Verify checksum
-    // TODO
+    uint16_t computed_sum = cksum(ihdr, sizeof(ip_hdr));
+    std::cout << "Computed sum: " << computed_sum << std::endl;
+    std::cout << "Header sum: " << ihdr->ip_sum << std::endl;
+
+    if (computed_sum != ihdr->ip_sum) {
+        std::cerr<< "Incorrect checksum" << std::endl;
+        //return; // TODO
+    }
 
     // Make a copy of the packet
     Buffer packet_fwd(packet);
@@ -204,6 +198,9 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         std::cout << "TTL reached 0... dropped" << std::endl;
     }
 
+    // Recompute checksum
+    // TODO
+
     RoutingTableEntry rtable_entry = m_routingTable.lookup(ihdr_fwd->ip_dst);
     const Interface *next_hop_iface = findIfaceByName(rtable_entry.ifName);
 
@@ -229,8 +226,6 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     }
     else {
         std::cout << "ARP entry for next hop not found. Sending ARP request on interface " << rtable_entry.ifName << std::endl;
-
-        // Send ARP request and copy packet_fwd into queue
 
         // Set the ethernet_hdr
         ethernet_hdr eth_req = {0};
@@ -268,6 +263,8 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         std::cout << "Printing ARP request packet we are about to send" << std::endl;
         print_hdrs(arp_req_packet.data(), arp_req_packet.size());
         sendPacket(arp_req_packet, rtable_entry.ifName);
+
+        // TODO add packet_fwd to queue
         return;
     }
   }
