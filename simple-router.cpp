@@ -71,18 +71,13 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
          break;
        }
      }
-  } else {
-     std::cout << "Destination of all ones detected" << std::endl;
   }
   if (!correct_dest) {
      std::cerr << "Received packet not destined for router... dropped" << std::endl;
   }
 
-  // Convert endianness of ether_type:
-  //uint16_t ether_type = (ehdr->ether_type>>8) | (ehdr->ether_type<<8);
   uint16_t ether_type = ntohs(ehdr->ether_type);
   if (ether_type == ethertype_arp) {
-    std::cout << "Received ARP ethernet type" << std::endl;
     minlength += sizeof(arp_hdr);
     if (length < minlength) {
         std::cerr << "Insufficient length (arp hdr)... dropped" << std::endl;
@@ -97,8 +92,6 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         const Interface *requested_interface = findIfaceByIp(ahdr->arp_tip);
         // TODO: What is ARP request is for IP not for this router interface (i.e., we get
         // request from another router, not a node...)
-
-        std::cout << "Request for " << requested_interface->name << std::endl;
 
         // Set the ethernet_hdr
         ethernet_hdr eth_reply = {0};
@@ -133,8 +126,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         for (size_t i = 0; i < sizeof(arp_hdr); ++i) {
             arp_reply_packet.push_back(arp_buf[i]);
         }
-        std::cout << "Printing ARP reply packet" << std::endl;
-        print_hdrs(arp_reply_packet.data(), arp_reply_packet.size());
+        std::cout << "Sending ARP reply" << std::endl;
         sendPacket(arp_reply_packet, iface->name);
         return;
     }
@@ -158,7 +150,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     }
   }
   else if (ether_type == ethertype_ip) {
-    std::cout << "Received IP ethernet type" << std::endl;
+    std::cout << "Received IP packet" << std::endl;
 
     minlength += sizeof(ip_hdr);
     if (length < minlength) {
@@ -167,24 +159,22 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     }
 
     const ip_hdr *ihdr = (const ip_hdr *) (buf + sizeof(ethernet_hdr));
-    // Verify checksum
-    uint16_t computed_sum = cksum(ihdr, packet.size() - sizeof(ethernet_hdr));
-    std::cout << "Computed sum: " << computed_sum << std::endl;
-    std::cout << "Header sum: " << ihdr->ip_sum << std::endl;
-
-    if (computed_sum != ihdr->ip_sum) {
-        std::cerr << "Incorrect IP header checksum" << std::endl;
-        //return; // TODO
-    }
 
     // Make a copy of the packet
     Buffer packet_fwd(packet);
-
     ethernet_hdr *ehdr_fwd = (ethernet_hdr *) packet_fwd.data();
     ip_hdr *ihdr_fwd = (ip_hdr *) (packet_fwd.data() + sizeof(ethernet_hdr));
 
+    // Verify checksum
+    ihdr_fwd->ip_sum = 0; // Zero out the ip sum before computing the checksum
+    uint16_t computed_sum = cksum(ihdr_fwd, sizeof(ip_hdr));
+    if (computed_sum != ihdr->ip_sum) {
+        std::cerr << "Incorrect IP header checksum... dropped" << std::endl;
+        return;
+    }
+
     if (ihdr_fwd->ip_v != 4) {
-        std::cout << "IP is not version 4... dropped" << std::endl;
+        std::cerr << "IP is not version 4... dropped" << std::endl;
         return;
     }
 
@@ -194,21 +184,22 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     // Check if packet is destined for the router
     const Interface *ip_dst_iface = findIfaceByIp(ihdr_fwd->ip_dst);
     if (ip_dst_iface != nullptr) {
-        std::cout << "IP packet is destined for router... dropped" << std::endl;
+        std::cerr << "IP packet is destined for router... dropped" << std::endl;
         return;
     }
 
     // Decrement TTL
     if (ihdr_fwd->ip_ttl == 0) {
-        std::cout << "TTL already 0... dropped" << std::endl;
+        std::cerr << "TTL already 0... dropped" << std::endl;
     }
     ihdr_fwd->ip_ttl -= 1;
     if (ihdr_fwd->ip_ttl == 0) {
-        std::cout << "TTL reached 0... dropped" << std::endl;
+        std::cerr << "TTL reached 0... dropped" << std::endl;
     }
 
     // Recompute checksum
-    // TODO
+    // Note ip_sum in ihdr_fwd is already 0, so we can compute sum right now
+    ihdr_fwd->ip_sum = cksum(ihdr_fwd, sizeof(ip_hdr));
 
     RoutingTableEntry rtable_entry = m_routingTable.lookup(ihdr_fwd->ip_dst);
     const Interface *next_hop_iface = findIfaceByName(rtable_entry.ifName);
@@ -269,11 +260,11 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         for (size_t i = 0; i < sizeof(arp_hdr); ++i) {
             arp_req_packet.push_back(arp_buf[i]);
         }
-        std::cout << "Printing ARP request packet we are about to send" << std::endl;
-        print_hdrs(arp_req_packet.data(), arp_req_packet.size());
+        std::cout << "Sending ARP request packet" << std::endl;
         sendPacket(arp_req_packet, rtable_entry.ifName);
 
         // TODO add packet_fwd to queue
+
         return;
     }
   }
