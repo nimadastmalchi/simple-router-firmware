@@ -48,8 +48,6 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     return;
   }
   const ethernet_hdr *ehdr = (const ethernet_hdr *) buf;
-  const uint8_t *ether_dest_addr = ehdr->ether_dhost;
-  const uint8_t *ether_src_addr = ehdr->ether_shost; 
 
   // Check if packet is destined to the router.
   if (iface->addr.size() != ETHER_ADDR_LEN) {
@@ -58,15 +56,15 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
   }
   bool correct_dest = true;
   for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
-     if (ether_dest_addr[i] != 255) {
+     if (ehdr->ether_dhost[i] != 255) {
         correct_dest = false;
         break;
      }
   }
   if (!correct_dest) {
      correct_dest = true;
-     for (size_t i = 0; i < iface->addr.size(); ++i) {
-       if (iface->addr[i] != ether_dest_addr[i]) {
+     for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
+       if (iface->addr[i] != ehdr->ether_dhost[i]) {
          correct_dest = false;
          break;
        }
@@ -92,6 +90,10 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         const Interface *requested_interface = findIfaceByIp(ahdr->arp_tip);
         // TODO: What is ARP request is for IP not for this router interface (i.e., we get
         // request from another router, not a node...)
+        if (requested_interface == nullptr) {
+            std::cerr << "Received ARP request for an unknown interface on this router... dropped" << std::endl;
+            return;
+        }
 
         // Set the ethernet_hdr
         ethernet_hdr eth_reply = {0};
@@ -131,7 +133,6 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         return;
     }
     else if (arp_op == arp_op_reply) {
-        // TODO NOT TESTED
         std::cout << "Received ARP reply" << std::endl;
 
         // Get the mac address of the ARP reply
@@ -150,7 +151,6 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
                 Buffer &packet_fwd = it->packet;
                 std::string &iface_str = it->iface;
 
-                // Send packet on iface
                 ethernet_hdr *ehdr = (ethernet_hdr *) packet_fwd.data();
 
                 const Interface *iface_fwd = findIfaceByName(iface_str);
@@ -207,7 +207,6 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     }
 
     // Check ACL and drop if necessary
-    // TODO
 
     // Check if packet is destined for the router
     const Interface *ip_dst_iface = findIfaceByIp(ihdr_fwd->ip_dst);
@@ -239,7 +238,6 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     //    If found, forward packet
     std::shared_ptr<ArpEntry> a_entry = m_arp.lookup(ihdr_fwd->ip_dst);
     if (a_entry) {
-        // TODO needs to be tested
         std::cout << "ARP entry for next hop found" << std::endl;
 
         for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
@@ -248,6 +246,8 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         }
         ehdr_fwd->ether_type = htons(ethertype_ip);
 
+        std::cout << "Sending below packet" << std::endl;
+        print_hdrs(packet_fwd);
         sendPacket(packet_fwd, rtable_entry.ifName);
         return;
     }
@@ -288,7 +288,6 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
             arp_req_packet.push_back(arp_buf[i]);
         }
         std::cout << "Sending ARP request packet" << std::endl;
-        print_hdrs(arp_req_packet);
         sendPacket(arp_req_packet, rtable_entry.ifName);
 
         // Add packet_fwd to queue
