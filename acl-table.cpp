@@ -72,9 +72,29 @@ ACLTable::lookup(uint32_t srcIp, uint32_t dstIp, uint8_t protocol, uint32_t srcP
   // priority
   // action
 
-  // mask is of from: ffff0000
+  // mask is of form: ffff0000
 
   // Iterate over the table and return the entry with the highest priority number
+
+  uint16_t highest_priority = -1;
+  ACLTableEntry highest_entry;
+
+  for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
+    if ((srcIp & it->srcMask) == (it->src & it->srcMask) &&
+        (dstIp & it->destMask) == (it->dest & it->destMask) &&
+        (protocol & it->protocolMask) == (it->protocol & it->protocolMask) &&
+        (srcPort & it->srcPortMask) == (it->srcPort & it->srcPortMask) &&
+        (dstPort & it->destPortMask) == (it->destPort & it->destPortMask)) {
+      if (it->priority > highest_priority) {
+          highest_priority = it->priority;
+          highest_entry = *it;
+      }
+    }
+  }
+
+  if (highest_priority != -1) {
+    return highest_entry;
+  }
 
   throw std::runtime_error("ACL entry not found");
 }
@@ -83,6 +103,7 @@ void
 ACLTable::addRule(ACLTableEntry& entry)
 {
   // FILL THIS IN
+  m_entries.push_back(entry);
 }
 
 //////////////////////////////////////////////////////////////////////////

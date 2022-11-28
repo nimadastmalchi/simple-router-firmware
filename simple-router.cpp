@@ -207,6 +207,15 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     }
 
     // Check ACL and drop if necessary
+    try {
+        ACLTableEntry acl_entry = m_aclTable.lookup(ihdr->ip_src, ihdr->ip_dst, ihdr->ip_p, 0, 0); // TODO is ip_p right?, fix srcPort and destPort
+        if (acl_entry.action == "deny") {
+            std::cerr << "Packet denied by ACL table... dropped" << std::endl;
+            return;
+        }
+    }
+    catch (std::runtime_error &e) {}
+
 
     // Check if packet is destined for the router
     const Interface *ip_dst_iface = findIfaceByIp(ihdr_fwd->ip_dst);
