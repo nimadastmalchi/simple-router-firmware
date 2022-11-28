@@ -160,7 +160,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
                 }
                 ehdr->ether_type = htons(ethertype_ip);
 
-                std::cout << "PRINTING PACKET ABOUT TO SEND AFTER GETTING ARP REPLY" << std::endl;
+                std::cout << "PRINTING DATA PACKET ABOUT TO SEND AFTER GETTING ARP REPLY" << std::endl;
                 print_hdrs(packet_fwd);
                 sendPacket(packet_fwd, iface_str);
             }
@@ -233,7 +233,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     const Interface *next_hop_iface = findIfaceByName(rtable_entry.ifName);
 
     // Forward packet
-    // 1. Check arp cache for MAC address
+    // Check arp cache for MAC address
     //    If not found, send ARP request on the interface
     //        Add packet to queue
     //    If found, forward packet
@@ -248,7 +248,6 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         }
         ehdr_fwd->ether_type = htons(ethertype_ip);
 
-        print_hdrs(packet_fwd);
         sendPacket(packet_fwd, rtable_entry.ifName);
         return;
     }
@@ -289,6 +288,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
             arp_req_packet.push_back(arp_buf[i]);
         }
         std::cout << "Sending ARP request packet" << std::endl;
+        print_hdrs(arp_req_packet);
         sendPacket(arp_req_packet, rtable_entry.ifName);
 
         // Add packet_fwd to queue
