@@ -52,12 +52,74 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
   //         Increment times sent (update header)
   //         Resend
 
-  std::lock_guard<std::mutex> lock(m_mutex);
-  for (const auto& entry : m_cacheEntries) {
-    if (...) {
-        entry->isValid = false;
+
+  // Resend ARP requests
+  std::list<item*>::iterator i = items.begin();
+    while (i != items.end())
+    {
+        bool isActive = (*i)->update();
+        if (!isActive)
+        {
+            items.erase(i++);  // alternatively, i = items.erase(i);
+        }
+        else
+        {
+            other_code_involving(*i);
+            ++i;
+        }
     }
+  auto it = m_arpRequests.begin();
+  while (it != m_arpRequests.end()) {
+    if (it->nTimesSent >= MAX_SENT_TIME - 1) {
+      it = m_arpRequests.erase(it);     
+      continue;
+    }
+    // Resend ARP Request
+    ++(it->nTimesSent);
+    const RoutingTable& rtable = m_router.getRoutingTable();
+    RoutingTableEntry rtable_entry = rtable.lookup(it->ip);
+    const Interface *iface = m_router.findIfaceByIp(rtable_entry.gw);
+    // Have to send ARP request on iface
+    // Ethernet header:
+    ethernet_hdr eth_req = {0};
+    for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
+      eth_req.ether_dhost[i] = 255;
+      eth_req.ether_shost[i] = iface->addr[i];
+    }
+    eth_req.ether_type = htons(ethertype_arp);
+    // ARP header:
+    arp_hdr arp_req = {0};
+    arp_req.arp_hrd = htons(1);
+    arp_req.arp_pro = htons(2048);
+    arp_req.arp_hln = 6;
+    arp_req.arp_pln = 4;
+    arp_req.arp_op = htons(arp_op_request);
+    for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
+      arp_req.arp_sha[i] = iface->addr[i];
+    }
+    arp-req.arp_sip = iface->ip;
+    for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
+      arp_req.arp_tha[i] = 0;
+    }
+    arp_req.arp_tip = it->ip;
+    // Send the ARP request packet:
+    Buffer arp_req_packet;
+    const uint8_t *eth_buf = (const uint8_t *) &eth_req;
+    for (size_t i = 0; i < sizeof(ethernet_hdr); ++i) {
+      arp_req_packet.push_back(eth_buf[i]);
+    }
+    const uint8_t *arp_buf = (const uint8_t *) &arp_req;
+    for (size_t i = 0; i < sizeof(arp_hdr); ++i) {
+      arp_req_packet.push_back(arp_buf[i]);
+    }
+    m_router.sendPacket(arp_req_packet, iface->name);
+    ++it;
   }
+
+  // Remove invalid entries
+  m_cacheEntries.remove_if([](const std::shared_ptr<ArpEntry> &entry) {
+    return entry && !entry->isValid;
+  });
   
 }
 //////////////////////////////////////////////////////////////////////////
