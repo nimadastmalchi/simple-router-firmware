@@ -54,20 +54,6 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 
 
   // Resend ARP requests
-  std::list<item*>::iterator i = items.begin();
-    while (i != items.end())
-    {
-        bool isActive = (*i)->update();
-        if (!isActive)
-        {
-            items.erase(i++);  // alternatively, i = items.erase(i);
-        }
-        else
-        {
-            other_code_involving(*i);
-            ++i;
-        }
-    }
   auto it = m_arpRequests.begin();
   while (it != m_arpRequests.end()) {
     if (it->nTimesSent >= MAX_SENT_TIME - 1) {
