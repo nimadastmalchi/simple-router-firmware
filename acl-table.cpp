@@ -76,7 +76,7 @@ ACLTable::lookup(uint32_t srcIp, uint32_t dstIp, uint8_t protocol, uint32_t srcP
 
   // Iterate over the table and return the entry with the highest priority number
 
-  uint16_t highest_priority = -1;
+  int highest_priority = -1;
   ACLTableEntry highest_entry;
 
   for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {

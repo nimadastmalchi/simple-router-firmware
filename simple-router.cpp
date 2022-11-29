@@ -208,6 +208,11 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
 
     // Check ACL and drop if necessary
     try {
+        if (ihdr->ip_p == ip_protocol_icmp) { // ICMP
+            ACLTableEntry acl_entry = m_aclTable.lookup(ihdr->ip_src, ihdr->ip_dst, ihdr->ip_p, 0, 0); // TODO is ip_p right?, fix srcPort and destPort
+        }
+        else if (ihdr->ip_p == 6 || ihdr->ip_p == 17) { // TCP or UDP
+        }
         ACLTableEntry acl_entry = m_aclTable.lookup(ihdr->ip_src, ihdr->ip_dst, ihdr->ip_p, 0, 0); // TODO is ip_p right?, fix srcPort and destPort
         if (acl_entry.action == "deny") {
             std::cerr << "Packet denied by ACL table... dropped" << std::endl;
