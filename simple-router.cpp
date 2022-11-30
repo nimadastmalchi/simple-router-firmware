@@ -160,10 +160,10 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
                 }
                 ehdr->ether_type = htons(ethertype_ip);
 
-                std::cout << "PRINTING DATA PACKET ABOUT TO SEND AFTER GETTING ARP REPLY" << std::endl;
-                print_hdrs(packet_fwd);
                 sendPacket(packet_fwd, iface_str);
             }
+            // Remove packets we just sent
+            areq->packets.clear();
         }
         else {
             std::cerr << "ARP REQUEST NOT FOUND" << std::endl;
@@ -210,9 +210,11 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     try {
         ACLTableEntry acl_entry;
         if (ihdr->ip_p == ip_protocol_icmp) { // ICMP
-            acl_entry = m_aclTable.lookup(ihdr->ip_src, ihdr->ip_dst, ihdr->ip_p, 0, 0);
+            std::cout << "ICMP header" << std::endl;
+            acl_entry = m_aclTable.lookup(ntohl(ihdr->ip_src), ntohl(ihdr->ip_dst), ihdr->ip_p, 0, 0);
         }
         else if (ihdr->ip_p == 6 || ihdr->ip_p == 17) { // TCP or UDP
+            std::cout << "TCP or UDP header" << std::endl;
             minlength += 20;
             if (length < minlength) {
                 std::cerr << "Insufficient length (tcp hdr)... dropped" << std::endl;
@@ -220,7 +222,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
             }
             const uint16_t *srcPort = (const uint16_t *)(buf + sizeof(ethernet_hdr) + sizeof(ip_hdr));
             const uint16_t *dstPort = (const uint16_t *)(buf + sizeof(ethernet_hdr) + sizeof(ip_hdr) + 2);
-            acl_entry = m_aclTable.lookup(ihdr->ip_src, ihdr->ip_dst, ihdr->ip_p, *srcPort, *dstPort);
+            acl_entry = m_aclTable.lookup(ntohl(ihdr->ip_src), ntohl(ihdr->ip_dst), ihdr->ip_p, ntohs(*srcPort), ntohs(*dstPort));
         } else {
             std::cout << "IP protocol is not supported... dropped" << std::endl;
             return;
@@ -270,8 +272,6 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         }
         ehdr_fwd->ether_type = htons(ethertype_ip);
 
-        std::cout << "Sending below packet" << std::endl;
-        print_hdrs(packet_fwd);
         sendPacket(packet_fwd, rtable_entry.ifName);
         return;
     }

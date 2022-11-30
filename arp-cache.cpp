@@ -56,14 +56,14 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
   // Resend ARP requests
   auto it = m_arpRequests.begin();
   while (it != m_arpRequests.end()) {
-    if (it->nTimesSent >= MAX_SENT_TIME - 1) {
+    if ((*it)->nTimesSent >= MAX_SENT_TIME - 1) {
       it = m_arpRequests.erase(it);     
       continue;
     }
     // Resend ARP Request
-    ++(it->nTimesSent);
+    ++((*it)->nTimesSent);
     const RoutingTable& rtable = m_router.getRoutingTable();
-    RoutingTableEntry rtable_entry = rtable.lookup(it->ip);
+    RoutingTableEntry rtable_entry = rtable.lookup((*it)->ip);
     const Interface *iface = m_router.findIfaceByIp(rtable_entry.gw);
     // Have to send ARP request on iface
     // Ethernet header:
@@ -83,11 +83,11 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
     for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
       arp_req.arp_sha[i] = iface->addr[i];
     }
-    arp-req.arp_sip = iface->ip;
+    arp_req.arp_sip = iface->ip;
     for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
       arp_req.arp_tha[i] = 0;
     }
-    arp_req.arp_tip = it->ip;
+    arp_req.arp_tip = (*it)->ip;
     // Send the ARP request packet:
     Buffer arp_req_packet;
     const uint8_t *eth_buf = (const uint8_t *) &eth_req;
