@@ -64,7 +64,10 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
     ++((*it)->nTimesSent);
     RoutingTable rtable = m_router.getRoutingTable();
     RoutingTableEntry rtable_entry = rtable.lookup((*it)->ip);
-    const Interface *iface = m_router.findIfaceByIp(rtable_entry.gw);
+    const Interface *iface = m_router.findIfaceByName(rtable_entry.ifName);
+    if (iface == nullptr) {
+      continue;
+    }
     // Have to send ARP request on iface
     // Ethernet header:
     ethernet_hdr eth_req = {0};
@@ -74,7 +77,6 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
     }
     eth_req.ether_type = htons(ethertype_arp);
     // ARP header:
-    /*
     arp_hdr arp_req = {0};
     arp_req.arp_hrd = htons(1);
     arp_req.arp_pro = htons(2048);
@@ -89,20 +91,17 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
       arp_req.arp_tha[i] = 0;
     }
     arp_req.arp_tip = (*it)->ip;
-    */
     // Send the ARP request packet:
     Buffer arp_req_packet;
     const uint8_t *eth_buf = (const uint8_t *) &eth_req;
     for (size_t i = 0; i < sizeof(ethernet_hdr); ++i) {
       arp_req_packet.push_back(eth_buf[i]);
     }
-    /*
     const uint8_t *arp_buf = (const uint8_t *) &arp_req;
     for (size_t i = 0; i < sizeof(arp_hdr); ++i) {
       arp_req_packet.push_back(arp_buf[i]);
     }
-    */
-    // m_router.sendPacket(arp_req_packet, iface->name);
+    m_router.sendPacket(arp_req_packet, iface->name);
     ++it;
   }
 
