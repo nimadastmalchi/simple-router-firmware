@@ -144,6 +144,11 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         // Get the ip of the ARP reply
         uint32_t ip_reply = ahdr->arp_sip;
 
+        std::shared_ptr<ArpEntry> entry = m_arp.lookup(ip_reply);
+        if (entry != nullptr) {
+            entry->isValid = false;
+        }
+
         std::shared_ptr<ArpRequest> areq = m_arp.insertArpEntry(mac_reply, ip_reply);
 
         if (areq != nullptr) {
@@ -181,6 +186,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     std::cout << "Received IP packet" << std::endl;
 
     minlength += sizeof(ip_hdr);
+    // TODO also check header length field?
     if (length < minlength) {
         std::cerr << "Insufficient length (ip hdr)... dropped" << std::endl;
         return;
@@ -207,32 +213,40 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     }
 
     // Check ACL and drop if necessary
-    try {
+    if (ihdr->ip_p != ip_protocol_icmp) {
         ACLTableEntry acl_entry;
-        if (ihdr->ip_p == ip_protocol_icmp) { // ICMP
-            std::cout << "ICMP header" << std::endl;
-            acl_entry = m_aclTable.lookup(ntohl(ihdr->ip_src), ntohl(ihdr->ip_dst), ihdr->ip_p, 0, 0);
-        }
-        else if (ihdr->ip_p == 6 || ihdr->ip_p == 17) { // TCP or UDP
-            std::cout << "TCP or UDP header" << std::endl;
-            minlength += 20;
-            if (length < minlength) {
-                std::cerr << "Insufficient length (tcp hdr)... dropped" << std::endl;
+        try {
+            if (ihdr->ip_p == 6 || ihdr->ip_p == 17) { // TCP or UDP
+                std::cout << "TCP or UDP header" << std::endl;
+                /*
+                // TODO
+                minlength += 20;
+                if (length < minlength) {
+                    std::cerr << "Insufficient length (tcp/udp hdr)... dropped" << std::endl;
+                    return;
+                }
+                */
+                const uint16_t *srcPort = (const uint16_t *)(buf + sizeof(ethernet_hdr) + sizeof(ip_hdr));
+                const uint16_t *dstPort = (const uint16_t *)(buf + sizeof(ethernet_hdr) + sizeof(ip_hdr) + 2);
+                std::cout << "TCP source port: " << *srcPort << std::endl;
+                std::cout << "TCP dest port: " << *dstPort << std::endl;
+                acl_entry = m_aclTable.lookup(ntohl(ihdr->ip_src), ntohl(ihdr->ip_dst), ihdr->ip_p, ntohs(*srcPort), ntohs(*dstPort));
+            } else {
+                std::cout << "IP protocol is not supported... dropped" << std::endl;
                 return;
             }
-            const uint16_t *srcPort = (const uint16_t *)(buf + sizeof(ethernet_hdr) + sizeof(ip_hdr));
-            const uint16_t *dstPort = (const uint16_t *)(buf + sizeof(ethernet_hdr) + sizeof(ip_hdr) + 2);
-            acl_entry = m_aclTable.lookup(ntohl(ihdr->ip_src), ntohl(ihdr->ip_dst), ihdr->ip_p, ntohs(*srcPort), ntohs(*dstPort));
-        } else {
-            std::cout << "IP protocol is not supported... dropped" << std::endl;
-            return;
+            if (acl_entry.action == "deny") {
+                std::cerr << "ACL entry found: packet denied... dropped" << std::endl;
+                return;
+            } else {
+                std::cerr << "ACL entry found: packet accepted" << std::endl;
+            }
         }
-        if (acl_entry.action == "deny") {
-            std::cerr << "Packet denied by ACL table... dropped" << std::endl;
-            return;
+        catch (std::runtime_error &e) {
+            std::cerr << "ACL entry not found: packet accepted" << std::endl;
         }
     }
-    catch (std::runtime_error &e) {}
+    // Forward ICMP and TCP/UDP packets that pass ICMP as usual
 
     // Check if packet is destined for the router
     const Interface *ip_dst_iface = findIfaceByIp(ihdr_fwd->ip_dst);

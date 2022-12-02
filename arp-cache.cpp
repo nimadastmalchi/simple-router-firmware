@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <chrono>
 
 namespace simple_router {
 
@@ -105,11 +106,22 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
     ++it;
   }
 
+  // Timeout ARP entries after 30 seconds
+  for (auto it = m_cacheEntries.begin(); it != m_cacheEntries.end(); ++it) {
+    if (!(*it) || !((*it)->isValid)) {
+      continue;
+    }
+    std::chrono::steady_clock::time_point current_time = steady_clock::now();
+    std::chrono::duration<double> diff = current_time - (*it)->timeAdded;
+    if (diff.count() > SR_ARPCACHE_TO.count()) { // greater than 30 seconds
+      (*it)->isValid = false;
+    }
+  }
+
   // Remove invalid entries
   m_cacheEntries.remove_if([](const std::shared_ptr<ArpEntry> &entry) {
     return entry && !entry->isValid;
   });
-  
 }
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
