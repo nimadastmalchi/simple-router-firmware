@@ -71,6 +71,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
   }
   if (!correct_dest) {
      std::cerr << "Received packet not destined for router... dropped" << std::endl;
+     return;
   }
 
   uint16_t ether_type = ntohs(ehdr->ether_type);
@@ -169,10 +170,6 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
             // Remove packets we just sent
             areq->packets.clear();
         }
-        else {
-            std::cerr << "ARP REQUEST NOT FOUND" << std::endl;
-            return;
-        }
 
         return;
     }
@@ -184,14 +181,22 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
   else if (ether_type == ethertype_ip) {
     std::cout << "Received IP packet" << std::endl;
 
+    // Verify header length
     minlength += sizeof(ip_hdr);
-    // TODO also check header length field?
     if (length < minlength) {
         std::cerr << "Insufficient length (ip hdr)... dropped" << std::endl;
         return;
     }
 
     const ip_hdr *ihdr = (const ip_hdr *) (buf + sizeof(ethernet_hdr));
+
+    // Verify data length
+    uint16_t actual_ip_len = packet.size() - sizeof(ethernet_hdr);
+    uint16_t hdr_ip_len = ntohs(ihdr->ip_len);
+    if (actual_ip_len != hdr_ip_len) {
+        std::cerr << "ip_len field on IP header differs from the packet length... dropped" << std::endl;
+        return;
+    }
 
     // Make a copy of the packet
     Buffer packet_fwd(packet);
@@ -251,12 +256,10 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
 
     // Decrement TTL
     if (ihdr_fwd->ip_ttl == 0) {
-        std::cerr << "TTL already 0... dropped" << std::endl;
+        std::cerr << "TTL is 0... dropped" << std::endl;
+        return;
     }
-    ihdr_fwd->ip_ttl -= 1;
-    if (ihdr_fwd->ip_ttl == 0) {
-        std::cerr << "TTL reached 0... dropped" << std::endl;
-    }
+    --ihdr_fwd->ip_ttl;
 
     // Recompute checksum
     // Note ip_sum in ihdr_fwd is already 0, so we can compute sum right now

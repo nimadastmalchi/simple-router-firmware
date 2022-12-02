@@ -79,15 +79,15 @@ ACLTable::lookup(uint32_t srcIp, uint32_t dstIp, uint8_t protocol, uint16_t srcP
   int highest_priority = -1;
   ACLTableEntry highest_entry;
 
-/*
+  /*
   std::cout << "srcIp: " << srcIp << std::endl;
   std::cout << "dstIp: " << dstIp << std::endl;
   std::cout << "protocol: " << protocol << std::endl;
   std::cout << "srcPort: " << srcPort << std::endl;
   std::cout << "dstPort: " << dstPort << std::endl;
-*/
+  */
   for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
-  /*
+    /*
     std::cout << std::endl;
     std::cout << "it->srcIp: " << it->src << std::endl;
     std::cout << "it->dstIp: " << it->dest << std::endl;
@@ -97,7 +97,7 @@ ACLTable::lookup(uint32_t srcIp, uint32_t dstIp, uint8_t protocol, uint16_t srcP
     std::cout << "it->dstPort: " << it->destPort << std::endl;
     std::cout << "it->dstPortMask: " << it->destPortMask << std::endl;
     std::cout << std::endl;
- */
+    */
     if ((srcIp & it->srcMask) == (it->src & it->srcMask) &&
         (dstIp & it->destMask) == (it->dest & it->destMask) &&
         (protocol & it->protocolMask) == (it->protocol & it->protocolMask) &&
