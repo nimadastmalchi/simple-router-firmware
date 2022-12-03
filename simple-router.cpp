@@ -218,34 +218,36 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
     }
 
     // Check ACL and drop if necessary
-    if (ihdr->ip_p == ip_protocol_tcp || ihdr->ip_p == ip_protocol_udp) {
-        std::cout << "TCP or UDP header" << std::endl;
-        try {
+    try {
+        ACLTableEntry acl_entry;
+        if (ihdr->ip_p == ip_protocol_tcp || ihdr->ip_p == ip_protocol_udp) {
+            std::cout << "TCP or UDP header" << std::endl;
             // TODO check TCP/UDP lengths
             struct port_hdr {
                 uint16_t src;
                 uint16_t dst;
             };
             const port_hdr *phdr = (const port_hdr *) (buf + sizeof(ethernet_hdr) + sizeof(ip_hdr));
-            auto acl_entry = m_aclTable.lookup(ntohl(ihdr->ip_src), ntohl(ihdr->ip_dst), ihdr->ip_p, ntohs(phdr->src), ntohs(phdr->dst));
-            if (acl_entry.action == "deny") {
-                std::cout << "ACL entry found: packet denied... dropped" << std::endl;
-                return;
-            }
-            else {
-                std::cout << "ACL entry found: packet accepted" << std::endl;
-            }
+            acl_entry = m_aclTable.lookup(ntohl(ihdr->ip_src), ntohl(ihdr->ip_dst), ihdr->ip_p, ntohs(phdr->src), ntohs(phdr->dst));
         }
-        catch (std::runtime_error &e) {
-            std::cout << "ACL entry NOT found: packet accepted" << std::endl;
+        else if (ihdr->ip_p == ip_protocol_icmp) {
+            acl_entry = m_aclTable.lookup(ntohl(ihdr->ip_src), ntohl(ihdr->ip_dst), ihdr->ip_p, 0, 0);
+        }
+        else {
+            std::cout << "Not TCP, UDP, or ICMP... dropped" << std::endl;
+            return;
+        }
+
+        if (acl_entry.action == "deny") {
+            std::cout << "ACL entry found: packet denied... dropped" << std::endl;
+            return;
+        }
+        else {
+            std::cout << "ACL entry found: packet accepted" << std::endl;
         }
     }
-    else if (ihdr->ip_p == ip_protocol_icmp) {
-        std::cout << "ICMP header" << std::endl;
-    }
-    else {
-        std::cout << "Not TCP, UDP, or ICMP... dropped" << std::endl;
-        return;
+    catch (std::runtime_error &e) {
+        std::cout << "ACL entry NOT found: packet accepted" << std::endl;
     }
 
     // Check if packet is destined for the router
