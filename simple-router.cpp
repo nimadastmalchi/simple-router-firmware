@@ -169,8 +169,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
                 sendPacket(packet_fwd, iface_str);
             }
             // Remove packets we just sent
-            // TODO remove request
-            areq->packets.clear();
+            m_arp.removeArpRequest(areq);
         }
 
         return;
