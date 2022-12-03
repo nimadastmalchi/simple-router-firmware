@@ -146,9 +146,10 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
 
         std::shared_ptr<ArpEntry> entry = m_arp.lookup(ip_reply);
         if (entry != nullptr) {
-            entry->isValid = false;
+            std::cout << "Received duplicate ARP reply... dropped" << std::endl;
+            return;
         }
-
+        
         std::shared_ptr<ArpRequest> areq = m_arp.insertArpEntry(mac_reply, ip_reply);
 
         if (areq != nullptr) {
@@ -168,6 +169,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
                 sendPacket(packet_fwd, iface_str);
             }
             // Remove packets we just sent
+            // TODO remove request
             areq->packets.clear();
         }
 
