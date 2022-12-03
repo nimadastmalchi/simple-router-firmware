@@ -260,6 +260,10 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         return;
     }
     --ihdr_fwd->ip_ttl;
+    if (ihdr_fwd->ip_ttl == 0) {
+        std::cerr << "TTL is 0... dropped" << std::endl;
+        return;
+    }
 
     // Recompute checksum
     // Note ip_sum in ihdr_fwd is already 0, so we can compute sum right now

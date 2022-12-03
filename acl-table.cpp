@@ -22,6 +22,9 @@
 #include <assert.h>
 #include <string.h>
 #include <unistd.h>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
 
 std::vector<std::string> splitStr(const std::string& s, const std::string& delimiter) {
   int startp = 0;
@@ -50,6 +53,8 @@ std::vector<std::string> splitStr(const std::string& s, const std::string& delim
 }
 
 namespace simple_router {
+
+bool new_file = true;
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -111,6 +116,21 @@ ACLTable::lookup(uint32_t srcIp, uint32_t dstIp, uint8_t protocol, uint16_t srcP
   }
 
   if (highest_priority != -1) {
+    std::ofstream out;
+    if (new_file) {
+        out.open("router-acl.log", std::ofstream::out | std::ofstream::trunc);
+        new_file = false;
+    }
+    else {
+        out.open("router-acl.log", std::ios::app);
+
+    }
+
+    if (highest_entry.action == "deny") {
+        out << highest_entry << std::endl;
+    }
+
+
     return highest_entry;
   }
 
