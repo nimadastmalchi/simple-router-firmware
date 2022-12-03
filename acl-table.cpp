@@ -117,17 +117,17 @@ ACLTable::lookup(uint32_t srcIp, uint32_t dstIp, uint8_t protocol, uint16_t srcP
 
   if (highest_priority != -1) {
     // Log to file before returning
-    std::ofstream out;
-    if (new_file) {
-        out.open("router-acl.log", std::ofstream::out | std::ofstream::trunc);
-        new_file = false;
-    }
-    else {
-        out.open("router-acl.log", std::ios::app);
-
-    }
     if (highest_entry.action == "deny") {
-        out << highest_entry << std::endl;
+        std::ofstream out;
+        if (new_file) {
+            out.open("router-acl.log", std::ofstream::out | std::ofstream::trunc);
+            new_file = false;
+        }
+        else {
+            out.open("router-acl.log", std::ios::app);
+        }
+        out << highest_entry;
+        out.close();
     }
 
     return highest_entry;
