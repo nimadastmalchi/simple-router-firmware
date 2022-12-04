@@ -323,10 +323,10 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
 
         // Set the arp_hdr
         arp_hdr arp_req = {0};
-        arp_req.arp_hrd = htons(1); // TODO
-        arp_req.arp_pro = htons(2048); // TODO
-        arp_req.arp_hln = 6; // TODO
-        arp_req.arp_pln = 4; // TODO
+        arp_req.arp_hrd = htons(1);
+        arp_req.arp_pro = htons(2048);
+        arp_req.arp_hln = 6;
+        arp_req.arp_pln = 4;
         arp_req.arp_op = htons(arp_op_request);
         for (size_t i = 0; i < ETHER_ADDR_LEN; ++i) {
             arp_req.arp_sha[i] = next_hop_iface->addr[i];

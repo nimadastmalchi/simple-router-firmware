@@ -41,7 +41,6 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
       continue;
     }
     // Resend ARP Request
-    ++((*it)->nTimesSent);
     RoutingTable rtable = m_router.getRoutingTable();
     RoutingTableEntry rtable_entry = rtable.lookup((*it)->ip);
     const Interface *iface = m_router.findIfaceByName(rtable_entry.ifName);
@@ -82,6 +81,7 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
       arp_req_packet.push_back(arp_buf[i]);
     }
     m_router.sendPacket(arp_req_packet, iface->name);
+    ++((*it)->nTimesSent);
     ++it;
   }
 
