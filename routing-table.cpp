@@ -34,14 +34,6 @@ RoutingTable::lookup(uint32_t ip) const
 {
 
   // FILL THIS IN
-  // RoutingTablEntry
-  //    - dest IP
-  //    - next hop IP (GW)
-  //    - Mask
-  //    - Interface name of next hop
-  // Longest prefix match -- linear search
-  // Requires some masking
-
   std::list<RoutingTableEntry>::const_iterator best_match;
   int prefix_size = -1;
   for (std::list<RoutingTableEntry>::const_iterator it=m_entries.begin(); it!=m_entries.end(); ++it) {

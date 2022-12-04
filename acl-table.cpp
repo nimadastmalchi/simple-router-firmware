@@ -63,46 +63,10 @@ ACLTableEntry
 ACLTable::lookup(uint32_t srcIp, uint32_t dstIp, uint8_t protocol, uint16_t srcPort, uint16_t dstPort) const
 {
   // FILL THIS IN
-  // Iterate over all entries
-  //    If found, return the entry
-
-  // One rule can correspond to multiple IP addresses. Use mask in ACL table to check if the IP addresses
-  // match
-
-  // ACL rule
-  // dstIP, dstMask -- use dstMask on the dstIp that is passed to this function (?)
-  // srcIP, srcMask -- use srcMask on the srcIp that is passed to this function (?)
-  // dstPort, srcPort
-  // protocol
-  // priority
-  // action
-
-  // mask is of form: ffff0000
-
-  // Iterate over the table and return the entry with the highest priority number
-
   int highest_priority = -1;
   ACLTableEntry highest_entry;
 
-  /*
-  std::cout << "srcIp: " << srcIp << std::endl;
-  std::cout << "dstIp: " << dstIp << std::endl;
-  std::cout << "protocol: " << protocol << std::endl;
-  std::cout << "srcPort: " << srcPort << std::endl;
-  std::cout << "dstPort: " << dstPort << std::endl;
-  */
   for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
-    /*
-    std::cout << std::endl;
-    std::cout << "it->srcIp: " << it->src << std::endl;
-    std::cout << "it->dstIp: " << it->dest << std::endl;
-    std::cout << "it->protocol: " << it->protocol << std::endl;
-    std::cout << "it->srcPort: " << it->srcPort << std::endl;
-    std::cout << "it->srcPortMask: " << it->srcPortMask << std::endl;
-    std::cout << "it->dstPort: " << it->destPort << std::endl;
-    std::cout << "it->dstPortMask: " << it->destPortMask << std::endl;
-    std::cout << std::endl;
-    */
     if ((srcIp & it->srcMask) == (it->src & it->srcMask) &&
         (dstIp & it->destMask) == (it->dest & it->destMask) &&
         (protocol & it->protocolMask) == (it->protocol & it->protocolMask) &&
