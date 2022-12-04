@@ -191,6 +191,12 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
 
     const ip_hdr *ihdr = (const ip_hdr *) (buf + sizeof(ethernet_hdr));
 
+    // Verify header length again using the ip_hl field
+    if ((4 * ihdr->ip_hl) != sizeof(ip_hdr)) {
+        std::cerr << "ihdr->ip_hl is not equal to size of ip_hdr struct... dropped" << std::endl;
+        return;
+    }
+
     // Verify data length
     uint16_t actual_ip_len = packet.size() - sizeof(ethernet_hdr);
     uint16_t hdr_ip_len = ntohs(ihdr->ip_len);
@@ -212,6 +218,7 @@ SimpleRouter::processPacket(const Buffer& packet, const std::string& inIface)
         return;
     }
 
+    // Verify IP version
     if (ihdr_fwd->ip_v != 4) {
         std::cerr << "IP is not version 4... dropped" << std::endl;
         return;
