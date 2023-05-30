@@ -1,4 +1,1 @@
-Name: Nima Amir Dastmalchi
-UID: 505320372
-Additional Libraries: None
-Online tutorials/resources: None
+A simple router that handles forwarding of Ethernet frames, ARP packets, IPv4 packets with routing table
